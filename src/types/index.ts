@@ -110,6 +110,12 @@ export interface FlightDeal extends FlightResult {
 }
 
 /**
+ * Supported AI feature types for model configuration.
+ * Matches AIModelService.getFeatureModelConfig parameter.
+ */
+export type FeatureType = 'chat' | 'nutrition' | 'workout' | 'oneagenda';
+
+/**
  * Configuration for flight search service
  */
 export interface FlightSearchConfig {
@@ -121,7 +127,7 @@ export interface FlightSearchConfig {
   }) => Promise<unknown>;
 
   /** Function to get feature model config */
-  getModelConfig: (feature: string) => Promise<{ model: unknown }>;
+  getModelConfig: (feature: FeatureType) => Promise<{ model: unknown }>;
 
   /** Logger instance */
   logger: {
