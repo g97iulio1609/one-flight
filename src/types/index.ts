@@ -67,9 +67,31 @@ export const FlightResultSchema = z.object({
       })
     )
     .optional(),
+
+  // Flight direction for round-trip distinction
+  direction: z.enum(['outbound', 'return']).optional(),
 });
 
 export type FlightResult = z.infer<typeof FlightResultSchema>;
+
+/** Flight direction type */
+export type FlightDirection = 'outbound' | 'return';
+
+/** Structured result for round-trip searches */
+export interface RoundTripSearchResult {
+  tripType: 'round-trip';
+  outbound: FlightResult[];
+  return: FlightResult[];
+}
+
+/** Structured result for one-way searches */
+export interface OneWaySearchResult {
+  tripType: 'one-way';
+  flights: FlightResult[];
+}
+
+/** Discriminated union for flight search results */
+export type FlightSearchResponse = RoundTripSearchResult | OneWaySearchResult;
 
 export interface FlightSearchInput {
   flyFrom: string[];

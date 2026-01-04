@@ -1,6 +1,12 @@
 import { createFlightAgent } from '@onecoach/lib-ai-agents';
 import type { LanguageModel } from 'ai';
-import type { FlightResult, FlightSearchInput, FlightSearchConfig } from '../types/index.js';
+import type {
+  FlightResult,
+  FlightSearchInput,
+  FlightSearchConfig,
+  FlightSearchResponse,
+  FlightDirection,
+} from '../types/index.js';
 import { FlightResultSchema } from '../types/index.js';
 
 /**
@@ -32,22 +38,24 @@ export class FlightSearchService {
 
   /**
    * Esegue una ricerca voli utilizzando l'AI Agent specializzato.
-   * Supporta ricerca multi-aeroporto via chiamate parallele.
+   * Returns structured FlightSearchResponse with separate outbound/return arrays for round-trips.
    */
-  static async search(input: FlightSearchInput): Promise<FlightResult[]> {
+  static async search(input: FlightSearchInput): Promise<FlightSearchResponse> {
     const config = this.getConfig();
     const { logger } = config;
     const startTime = Date.now();
     const { flyFrom, flyTo, departureDate, returnDate } = input;
+    const isRoundTrip = !!returnDate;
 
     logger.info(`✈️ [${this.SERVICE_NAME}] Avvio ricerca voli`, {
       module: 'flight',
       from: flyFrom,
       to: flyTo,
+      tripType: isRoundTrip ? 'round-trip' : 'one-way',
     });
 
     try {
-      // 1. Genera tutte le combinazioni di tratte
+      // Generate all airport pair combinations
       const searchPairs: { from: string; to: string }[] = [];
       for (const from of flyFrom) {
         for (const to of flyTo) {
@@ -55,48 +63,80 @@ export class FlightSearchService {
         }
       }
 
-      // 2. Esegui ricerche in parallelo
-      const searchPromises = searchPairs.map((pair) =>
-        this.executeSingleSearch(pair.from, pair.to, departureDate, returnDate)
-      );
+      if (isRoundTrip) {
+        // ROUND-TRIP: Separate searches for outbound and return
+        const [outboundResults, returnResults] = await Promise.all([
+          this.executeDirectionalSearch(searchPairs, departureDate, 'outbound'),
+          this.executeDirectionalSearch(
+            searchPairs.map((p) => ({ from: p.to, to: p.from })), // Swap direction
+            returnDate,
+            'return'
+          ),
+        ]);
 
-      const allResults = await Promise.all(searchPromises);
+        logger.info(`✅ [${this.SERVICE_NAME}] Round-trip search completed`, {
+          outboundCount: outboundResults.length,
+          returnCount: returnResults.length,
+          durationMs: Date.now() - startTime,
+        });
 
-      // 3. Flatten e Deduplicazione
-      let mergedFlights: FlightResult[] = [];
-
-      if (allResults.length === 1) {
-        mergedFlights = allResults[0] ?? [];
+        return {
+          tripType: 'round-trip',
+          outbound: outboundResults,
+          return: returnResults,
+        };
       } else {
-        const seenKeys = new Set<string>();
+        // ONE-WAY: Single direction search
+        const flights = await this.executeDirectionalSearch(searchPairs, departureDate, 'outbound');
 
-        for (const results of allResults) {
-          for (const flight of results) {
-            const uniqueKey = `${flight.flyFrom}-${flight.flyTo}-${flight.price}-${flight.departure.local}`;
-            if (!seenKeys.has(uniqueKey)) {
-              seenKeys.add(uniqueKey);
-              mergedFlights.push(flight);
-            }
-          }
-        }
+        logger.info(`✅ [${this.SERVICE_NAME}] One-way search completed`, {
+          totalFound: flights.length,
+          durationMs: Date.now() - startTime,
+        });
+
+        return {
+          tripType: 'one-way',
+          flights,
+        };
       }
-
-      // 4. Ordinamento per prezzo
-      const sortedFlights = mergedFlights.sort((a, b) => a.price - b.price);
-
-      logger.info(`✅ [${this.SERVICE_NAME}] Ricerca completata`, {
-        totalFound: sortedFlights.length,
-        searchesPerformed: searchPromises.length,
-        durationMs: Date.now() - startTime,
-      });
-
-      return sortedFlights;
     } catch (error) {
       logger.error(`❌ [${this.SERVICE_NAME}] Errore durante la ricerca`, {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
+  }
+
+  /**
+   * Executes searches for multiple airport pairs and tags results with direction.
+   */
+  private static async executeDirectionalSearch(
+    pairs: { from: string; to: string }[],
+    date: string,
+    direction: FlightDirection
+  ): Promise<FlightResult[]> {
+    const searchPromises = pairs.map((pair) =>
+      this.executeSingleSearch(pair.from, pair.to, date, null) // No return date for single-leg
+    );
+
+    const allResults = await Promise.all(searchPromises);
+
+    // Flatten, deduplicate, and tag with direction
+    const seenKeys = new Set<string>();
+    const flights: FlightResult[] = [];
+
+    for (const results of allResults) {
+      for (const flight of results) {
+        const uniqueKey = `${flight.flyFrom}-${flight.flyTo}-${flight.price}-${flight.departure.local}`;
+        if (!seenKeys.has(uniqueKey)) {
+          seenKeys.add(uniqueKey);
+          flights.push({ ...flight, direction });
+        }
+      }
+    }
+
+    // Sort by price
+    return flights.sort((a, b) => a.price - b.price);
   }
 
   /**
