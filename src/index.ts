@@ -6,13 +6,13 @@
  */
 
 // Types
-export * from './types/index.js';
+export * from './types';
 
 // Services
-export * from './services/index.js';
+export * from './services';
 
 // Agents
-export * from './agents/index.js';
+export * from './agents';
 
 // Tools
-export * from './tools/index.js';
+export * from './tools';

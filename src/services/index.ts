@@ -4,4 +4,4 @@
  * Contains the FlightSearchService for orchestrating flight searches.
  */
 
-export { FlightSearchService } from './flight-search.service.js';
+export { FlightSearchService } from './flight-search.service';

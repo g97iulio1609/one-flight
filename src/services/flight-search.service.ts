@@ -6,8 +6,8 @@ import type {
   FlightSearchConfig,
   FlightSearchResponse,
   FlightDirection,
-} from '../types/index.js';
-import { FlightResultSchema } from '../types/index.js';
+} from '../types';
+import { FlightResultSchema } from '../types';
 
 /**
  * Flight Search Service
