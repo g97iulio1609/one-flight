@@ -45,6 +45,11 @@
     "@onecoach/types": "workspace:*"
   },
   "devDependencies": {
+    "@onecoach/contracts": "workspace:*",
+    "@onecoach/lib-core": "workspace:*",
+    "@onecoach/lib-mcp-server": "workspace:*",
+    "@onecoach/lib-validation": "workspace:*",
+    "@onecoach/schemas": "workspace:*",
     "@types/node": "^25.0.3",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
