@@ -32,7 +32,8 @@
     "dev": "tsup --watch",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:fix": "eslint --fix \"src/**/*.{ts,tsx}\"",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:agent": "tsx test-sdk-agent.ts"
   },
   "dependencies": {
     "ai": "6.0.5",
@@ -42,6 +43,7 @@
     "@onecoach/lib-ai": "workspace:*",
     "@onecoach/lib-ai-agents": "workspace:*",
     "@onecoach/lib-shared": "workspace:*",
+    "@onecoach/one-agent": "workspace:*",
     "@onecoach/types": "workspace:*"
   },
   "devDependencies": {
@@ -52,6 +54,7 @@
     "@onecoach/schemas": "workspace:*",
     "@types/node": "^25.0.3",
     "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   },
   "sideEffects": false

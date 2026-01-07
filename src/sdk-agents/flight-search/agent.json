@@ -1,0 +1,22 @@
+{
+  "id": "flight-search",
+  "version": "1.0.0",
+  "type": "agent",
+  "interface": {
+    "input": { "$ref": "flight-search:input" },
+    "output": { "$ref": "flight-search:output" }
+  },
+  "mcpServers": {
+    "kiwi": {
+      "url": "https://mcp.kiwi.com"
+    }
+  },
+  "config": {
+    "model": "claude-sonnet-4-20250514",
+    "temperature": 0.3,
+    "maxSteps": 10,
+    "maxTokens": 4096,
+    "timeout": 60000,
+    "executionMode": "stream"
+  }
+}

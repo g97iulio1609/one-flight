@@ -16,3 +16,6 @@ export * from './agents';
 
 // Tools
 export * from './tools';
+
+// Registry (for bundled environments)
+export { initializeFlightSchemas } from './registry';

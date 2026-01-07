@@ -1,0 +1,227 @@
+/**
+ * Smart Flight Search Service
+ *
+ * Uses the OneAgent SDK v3.0 to execute the flight-search agent.
+ * The agent uses ToolLoopAgent with MCP tools (Kiwi) for flight data
+ * and AI analysis for recommendations.
+ * 
+ * Integrates with the centralized AI model system from admin settings.
+ */
+
+import { execute } from '@onecoach/one-agent/framework';
+import type { FlightResult } from '../types';
+import { resolve } from 'path';
+import { initializeFlightSchemas } from '../registry';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface FlightSearchInput {
+  flyFrom: string[];
+  flyTo: string[];
+  departureDate: string;
+  returnDate?: string | null;
+  maxResults?: number;
+  currency?: string;
+  preferences?: {
+    priority?: 'price' | 'duration' | 'convenience';
+    preferDirectFlights?: boolean;
+    maxLayoverHours?: number;
+    departureTimePreference?: 'morning' | 'afternoon' | 'evening' | 'any';
+  };
+}
+
+export interface FlightAnalysis {
+  marketSummary: string;
+  priceAnalysis: {
+    avgOutboundPrice: number;
+    avgReturnPrice?: number;
+    isPriceGood: boolean;
+    priceTrend: string;
+  };
+  routeAnalysis: {
+    bestOrigin?: string;
+    originReason?: string;
+    bestDestination?: string;
+    destinationReason?: string;
+  };
+  scheduleAnalysis: {
+    hasGoodDirectOptions: boolean;
+    avgLayoverMinutes?: number;
+    bestTimeToFly: string;
+  };
+  keyInsights: string[];
+  savingsTips?: string[];
+}
+
+export interface FlightRecommendation {
+  outboundFlightId: string;
+  returnFlightId?: string;
+  totalPrice: number;
+  strategy: 'best_value' | 'cheapest' | 'fastest' | 'most_convenient' | 'flexible_combo';
+  confidence: number;
+  reasoning: string;
+}
+
+export interface FlightSearchOutput {
+  tripType: 'one-way' | 'round-trip';
+  outbound: FlightResult[];
+  return?: FlightResult[];
+  analysis: FlightAnalysis;
+  recommendation: FlightRecommendation;
+  alternatives?: FlightRecommendation[];
+  metadata: {
+    searchedAt: string;
+    totalResults: number;
+    cheapestPrice?: number;
+  };
+}
+
+export interface SmartSearchResult {
+  success: boolean;
+  data?: FlightSearchOutput;
+  error?: {
+    message: string;
+    code: string;
+  };
+  meta: {
+    executionId: string;
+    durationMs: number;
+    tokensUsed: number;
+    costUSD: number;
+  };
+}
+
+// =============================================================================
+// Service State
+// =============================================================================
+
+let isInitialized = false;
+let basePath: string = '';
+
+/**
+ * Initialize the smart search service
+ * 
+ * The basePath should point to the directory containing sdk-agents/
+ * In Next.js, process.cwd() returns apps/next, so we go up to monorepo root
+ */
+export function initializeSmartSearch(options: { basePath?: string } = {}): void {
+  if (isInitialized) return;
+
+  // Register flight schemas with SDK registry (required for bundled envs)
+  initializeFlightSchemas();
+
+  // Use provided basePath, or construct from monorepo root
+  // process.cwd() in Next.js = /path/to/CoachOne/apps/next
+  // We need: /path/to/CoachOne/submodules/one-flight/src
+  // So: go up 2 levels (../../) then into submodules
+  basePath = options.basePath ?? resolve(process.cwd(), '../../submodules/one-flight/src');
+  isInitialized = true;
+  console.log('[SmartSearch] Initialized with basePath:', basePath);
+}
+
+// =============================================================================
+// Main Function
+// =============================================================================
+
+/**
+ * Execute a smart flight search using the OneAgent SDK
+ * 
+ * This calls the flight-search agent which:
+ * 1. Uses ToolLoopAgent to call Kiwi MCP tools for flight data
+ * 2. Analyzes the results using AI
+ * 3. Generates recommendations based on user preferences
+ */
+export async function smartFlightSearch(
+  input: FlightSearchInput,
+  userId: string
+): Promise<SmartSearchResult> {
+  if (!isInitialized) {
+    initializeSmartSearch();
+  }
+
+  const startTime = Date.now();
+
+  console.log('[SmartSearch] Starting smart flight search...');
+  console.log('[SmartSearch] basePath:', basePath);
+  console.log('[SmartSearch] userId:', userId);
+  console.log('[SmartSearch] input:', JSON.stringify(input, null, 2));
+
+  try {
+    // Input is passed as-is (YYYY-MM-DD format)
+    // The agent worker will handle any format conversion needed for Kiwi API
+    const agentInput: FlightSearchInput = {
+      ...input,
+    };
+
+    console.log('[SmartSearch] Calling execute() with agentPath: sdk-agents/flight-search');
+    console.log('[SmartSearch] agentInput:', JSON.stringify(agentInput, null, 2));
+
+    // Execute the flight-search agent via SDK
+    const result = await execute<FlightSearchOutput>(
+      'sdk-agents/flight-search',
+      agentInput,
+      {
+        userId,
+        basePath,
+      }
+    );
+
+    console.log('[SmartSearch] execute() returned:', JSON.stringify({
+      success: result.success,
+      hasOutput: !!result.output,
+      error: result.error,
+      meta: result.meta,
+    }, null, 2));
+
+    if (result.success && result.output) {
+      console.log('[SmartSearch] ✅ Success! Returning data...');
+      return {
+        success: true,
+        data: result.output,
+        meta: {
+          executionId: result.meta.executionId,
+          durationMs: result.meta.duration,
+          tokensUsed: result.meta.tokensUsed,
+          costUSD: result.meta.costUSD,
+        },
+      };
+    }
+
+    console.log('[SmartSearch] ❌ execute() returned failure:', result.error);
+    return {
+      success: false,
+      error: {
+        message: result.error?.message ?? 'Unknown error occurred',
+        code: result.error?.code ?? 'UNKNOWN_ERROR',
+      },
+      meta: {
+        executionId: result.meta.executionId,
+        durationMs: result.meta.duration,
+        tokensUsed: result.meta.tokensUsed,
+        costUSD: result.meta.costUSD,
+      },
+    };
+  } catch (error) {
+    console.error('[SmartSearch] ❌ Exception caught:', error);
+    console.error('[SmartSearch] Error name:', error instanceof Error ? error.name : 'N/A');
+    console.error('[SmartSearch] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[SmartSearch] Error stack:', error instanceof Error ? error.stack : 'N/A');
+
+    return {
+      success: false,
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        code: 'EXECUTION_ERROR',
+      },
+      meta: {
+        executionId: `error-${Date.now()}`,
+        durationMs: Date.now() - startTime,
+        tokensUsed: 0,
+        costUSD: 0,
+      },
+    };
+  }
+}
+
