@@ -1,5 +1,4 @@
-import { createFlightAgent } from '@onecoach/lib-ai-agents';
-import type { LanguageModel } from 'ai';
+
 import type {
   FlightResult,
   FlightSearchInput,
@@ -7,7 +6,6 @@ import type {
   FlightSearchResponse,
   FlightDirection,
 } from '../types';
-import { FlightResultSchema } from '../types';
 
 /**
  * Flight Search Service
@@ -149,36 +147,50 @@ export class FlightSearchService {
     returnDate?: string | null
   ): Promise<FlightResult[]> {
     const config = this.getConfig();
-    const { logger, getMcpTools, getModelConfig } = config;
+    const { logger } = config;
     const searchId = `${from}->${to}`;
 
     logger.info(`🔍 [${this.SERVICE_NAME}] Avvio ricerca singola: ${searchId}`);
 
     try {
-      const modelConfig = await getModelConfig('chat');
-      const mcpContext: Record<string, unknown> = { domain: 'chat' };
+      // Use SDK 3.1 executeFlightSearch directly
+      const { executeFlightSearch } = await import('../agents');
 
-      const mcpTools = await getMcpTools({
-        userId: 'system',
-        isAdmin: false,
-        mcpContext,
-      });
+      const result = await executeFlightSearch({
+        flyFrom: [from],
+        flyTo: [to],
+        departureDate,
+        returnDate: returnDate ?? undefined,
+        maxResults: 5,
+        currency: 'EUR',
+      }, { userId: 'system' });
 
-      const { execute } = await createFlightAgent({
-        userId: 'system',
-        model: modelConfig.model as LanguageModel,
-        mcpTools: mcpTools as Record<string, unknown>,
-      });
-
-      const prompt = this.buildSearchPrompt(from, to, departureDate, returnDate);
-      const result = await execute(prompt);
-
-      if (!result.success || !result.data) {
+      if (!result.success || !result.output) {
         logger.warn(`⚠️ [${this.SERVICE_NAME}] Nessun dato per ${searchId}`);
         return [];
       }
 
-      const flights = this.parseAndValidateResults(result.data, searchId, logger);
+      // Map SDK output to FlightResult format
+      const flights: FlightResult[] = result.output.outbound.map((flight) => ({
+        id: flight.id,
+        flyFrom: flight.flyFrom,
+        flyTo: flight.flyTo,
+        cityFrom: flight.cityFrom,
+        cityTo: flight.cityTo,
+        departure: flight.departure,
+        arrival: flight.arrival,
+        totalDurationInSeconds: flight.totalDurationInSeconds,
+        price: flight.price,
+        currency: flight.currency,
+        deepLink: flight.deepLink,
+        layovers: flight.layovers?.map(l => ({
+          at: l.at,
+          city: l.city,
+          cityCode: l.cityCode,
+        })),
+        direction: flight.direction as FlightDirection,
+      }));
+
       return flights;
     } catch (error) {
       logger.error(`❌ [${this.SERVICE_NAME}] Fallita ricerca ${searchId}`, {
@@ -187,113 +199,6 @@ export class FlightSearchService {
       return [];
     }
   }
-
-  private static buildSearchPrompt(
-    from: string,
-    to: string,
-    dep: string,
-    ret?: string | null
-  ): string {
-    let prompt = `Find cheapest flights from ${from} to ${to} departing on ${dep}`;
-    if (ret) {
-      prompt += ` and returning on ${ret}`;
-    }
-    prompt += `. Return max 5 options. Ensure you get real data from the tools.`;
-    return prompt;
-  }
-
-  private static parseAndValidateResults(
-    agentData: { response: string; steps: unknown[] },
-    searchId: string,
-    logger: FlightSearchConfig['logger']
-  ): FlightResult[] {
-    let flights: unknown[] = [];
-
-    // Extract from tool steps
-    if (agentData.steps && Array.isArray(agentData.steps)) {
-      flights = this.extractFlightsFromAgentSteps(agentData.steps);
-    }
-
-    // Fallback: parse JSON from response
-    if (flights.length === 0 && typeof agentData.response === 'string') {
-      try {
-        const jsonMatch = agentData.response.match(/\[.*\]/s);
-        if (jsonMatch) {
-          flights = JSON.parse(jsonMatch[0]);
-        }
-      } catch {
-        // Silent fail on parse error
-      }
-    }
-
-    // Validate with Zod
-    const validatedFlights: FlightResult[] = [];
-    let flightIndex = 0;
-
-    for (const flight of flights) {
-      try {
-        const rawFlight = flight as Record<string, unknown>;
-        if (!rawFlight.id) {
-          const uniqueStr = `${rawFlight.flyFrom}-${rawFlight.flyTo}-${rawFlight.price}-${flightIndex}-${Date.now()}`;
-          rawFlight.id = `kiwi-${Buffer.from(uniqueStr).toString('base64').replace(/[+/=]/g, '')}`;
-        }
-        flightIndex++;
-
-        const validated = FlightResultSchema.parse(rawFlight);
-        validatedFlights.push(validated);
-      } catch {
-        // Skip invalid flights
-      }
-    }
-
-    logger.info(
-      `✅ [${this.SERVICE_NAME}] Validati ${validatedFlights.length} voli per ${searchId}`
-    );
-    return validatedFlights;
-  }
-
-  private static extractFlightsFromAgentSteps(steps: unknown[]): unknown[] {
-    const flights: unknown[] = [];
-
-    steps.forEach((step) => {
-      const s = step as {
-        toolResults?: Array<{
-          toolName: string;
-          output?: { content?: Array<{ type: string; text?: string }>; data?: unknown[] };
-        }>;
-      };
-
-      if (s.toolResults) {
-        const kiwiResults = s.toolResults.filter((tr) => tr.toolName === 'kiwi_search_flight');
-
-        kiwiResults.forEach((tr) => {
-          const toolOutput = tr.output;
-
-          if (toolOutput?.content && Array.isArray(toolOutput.content)) {
-            toolOutput.content.forEach((contentItem) => {
-              if (contentItem.type === 'text' && contentItem.text) {
-                try {
-                  const parsed = JSON.parse(contentItem.text);
-                  if (Array.isArray(parsed)) {
-                    flights.push(...parsed);
-                  } else if (parsed.data && Array.isArray(parsed.data)) {
-                    flights.push(...parsed.data);
-                  }
-                } catch {
-                  // Silent fail
-                }
-              }
-            });
-          } else if (toolOutput) {
-            const data = toolOutput.data || toolOutput;
-            if (Array.isArray(data)) {
-              flights.push(...data);
-            }
-          }
-        });
-      }
-    });
-
-    return flights;
-  }
 }
+
+

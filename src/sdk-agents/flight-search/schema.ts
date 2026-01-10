@@ -38,6 +38,13 @@ export const FlightSearchInputSchema = z.object({
     /** Preferred departure time range */
     departureTimePreference: z.enum(['morning', 'afternoon', 'evening', 'any']).default('any'),
   }).optional(),
+  
+  /** 
+   * Pre-fetched flight data (used for gemini-cli workaround).
+   * When provided, the agent should use this data instead of calling MCP tools.
+   * @see https://github.com/ben-vargas/ai-sdk-provider-gemini-cli/issues/28
+   */
+  prefetchedFlights: z.array(z.any()).optional().describe('Pre-fetched flight data - when provided, skip MCP tool calls'),
 });
 
 export type FlightSearchInput = z.infer<typeof FlightSearchInputSchema>;

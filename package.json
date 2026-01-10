@@ -36,15 +36,22 @@
     "test:agent": "tsx test-sdk-agent.ts"
   },
   "dependencies": {
-    "ai": "6.0.5",
+    "ai": "6.0.19",
     "zod": "4.3.4"
   },
   "peerDependencies": {
     "@onecoach/lib-ai": "workspace:*",
-    "@onecoach/lib-ai-agents": "workspace:*",
     "@onecoach/lib-shared": "workspace:*",
     "@onecoach/one-agent": "workspace:*",
-    "@onecoach/types": "workspace:*"
+    "@onecoach/types-core": "workspace:*",
+    "@onecoach/types-workout": "workspace:*",
+    "@onecoach/types-nutrition": "workspace:*",
+    "@onecoach/types-chat": "workspace:*",
+    "@onecoach/types-analytics": "workspace:*",
+    "@onecoach/types-ai": "workspace:*",
+    "@onecoach/types-ui": "workspace:*",
+    "@onecoach/types-domain": "workspace:*",
+    "@onecoach/types-database": "workspace:*"
   },
   "devDependencies": {
     "@onecoach/contracts": "workspace:*",

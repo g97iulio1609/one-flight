@@ -12,7 +12,7 @@
     }
   },
   "config": {
-    "model": "claude-sonnet-4-20250514",
+    "tier": "balanced",
     "temperature": 0.3,
     "maxSteps": 10,
     "maxTokens": 4096,

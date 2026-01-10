@@ -1,18 +1,62 @@
 /**
- * Flight Agents - Re-exports from @onecoach/lib-ai-agents
+ * Flight Agents
  *
- * lib-flight acts as a facade for flight-related functionality.
- * The actual agent implementations remain in lib-ai-agents (already a submodule).
+ * Exposes OneAgent SDK 3.1-based flight search agent.
+ * The agent is defined in sdk-agents/flight-search and uses the workflow/worker pattern.
  *
- * This ensures:
- * 1. Single source of truth for agent code
- * 2. No duplication of logging utilities
- * 3. Consistent versioning through lib-ai-agents submodule
+ * Usage:
+ * ```typescript
+ * import { executeFlightSearch } from '@onecoach/lib-flight/agents';
+ *
+ * const result = await executeFlightSearch({
+ *   flyFrom: ['MXP'],
+ *   flyTo: ['BCN'],
+ *   departureDate: '2025-02-15',
+ * }, { userId: 'user_123' });
+ * ```
  */
 
-// Re-export flight agents from lib-ai-agents
-// Consumers can import from '@onecoach/lib-flight/agents' for convenience
-export { createFlightAgent, type FlightAgentConfig } from '@onecoach/lib-ai-agents';
+import { execute as sdkExecute, createInMemoryAdapter, type PersistenceAdapter } from '@onecoach/one-agent/framework';
+import type { FlightSearchInput as SDKFlightSearchInput, FlightSearchOutput } from '../sdk-agents/flight-search/schema';
+import path from 'path';
 
-// FlightHackerAgent for advanced search strategies
-export { createFlightHackerAgent, type FlightHackerAgentConfig } from '@onecoach/lib-ai-agents';
+// Export SDK-based types under distinct names to avoid conflict with ./types
+export type { FlightSearchOutput as SDKFlightSearchOutput };
+
+export interface FlightAgentOptions {
+  userId: string;
+  /** Prisma or in-memory adapter for persistence */
+  persistence?: PersistenceAdapter;
+}
+
+/**
+ * Execute a flight search using the OneAgent SDK 3.1 workflow.
+ */
+export async function executeFlightSearch(
+  input: SDKFlightSearchInput,
+  options: FlightAgentOptions
+): Promise<{
+  success: boolean;
+  output?: FlightSearchOutput;
+  error?: { message: string };
+  meta: {
+    duration: number;
+    tokensUsed: number;
+    costUSD: number;
+  };
+}> {
+  const persistence = options.persistence ?? createInMemoryAdapter();
+
+  return sdkExecute<FlightSearchOutput>(
+    'sdk-agents/flight-search',
+    input,
+    {
+      userId: options.userId,
+      persistence,
+      basePath: path.resolve(__dirname, '..'),
+    }
+  );
+}
+
+
+
