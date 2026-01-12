@@ -22,10 +22,15 @@
     "./tools": {
       "types": "./dist/tools/index.d.ts",
       "import": "./dist/tools/index.js"
+    },
+    "./sdk-agents/flight-search/schema": {
+      "types": "./src/sdk-agents/flight-search/schema.ts",
+      "import": "./src/sdk-agents/flight-search/schema.ts"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src/sdk-agents"
   ],
   "scripts": {
     "build": "tsup",
@@ -64,5 +69,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   },
-  "sideEffects": false
+  "sideEffects": [
+    "./src/sdk-agents/*/schema.ts"
+  ]
 }

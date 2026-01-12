@@ -1,4 +1,8 @@
 
+// Side-effect import to register flight-search schemas BEFORE any dynamic import
+// This MUST be a static import to prevent tree-shaking
+import '../sdk-agents/flight-search/schema';
+
 import type {
   FlightResult,
   FlightSearchInput,
@@ -35,6 +39,27 @@ export class FlightSearchService {
   }
 
   /**
+   * Normalize date to YYYY-MM-DD format required by agent schema.
+   * Supports DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD formats.
+   */
+  private static normalizeDate(date: string): string {
+    // Already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return date;
+    }
+    
+    // DD/MM/YYYY or DD-MM-YYYY format
+    const match = date.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+    if (match) {
+      const [, day, month, year] = match;
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Return as-is if format not recognized (will fail validation with clear error)
+    return date;
+  }
+
+  /**
    * Esegue una ricerca voli utilizzando l'AI Agent specializzato.
    * Returns structured FlightSearchResponse with separate outbound/return arrays for round-trips.
    */
@@ -43,7 +68,11 @@ export class FlightSearchService {
     const { logger } = config;
     const startTime = Date.now();
     const { flyFrom, flyTo, departureDate, returnDate } = input;
-    const isRoundTrip = !!returnDate;
+    
+    // Normalize dates to YYYY-MM-DD format
+    const normalizedDepartureDate = this.normalizeDate(departureDate);
+    const normalizedReturnDate = returnDate ? this.normalizeDate(returnDate) : undefined;
+    const isRoundTrip = !!normalizedReturnDate;
 
     logger.info(`✈️ [${this.SERVICE_NAME}] Avvio ricerca voli`, {
       module: 'flight',
@@ -64,10 +93,10 @@ export class FlightSearchService {
       if (isRoundTrip) {
         // ROUND-TRIP: Separate searches for outbound and return
         const [outboundResults, returnResults] = await Promise.all([
-          this.executeDirectionalSearch(searchPairs, departureDate, 'outbound'),
+          this.executeDirectionalSearch(searchPairs, normalizedDepartureDate, 'outbound'),
           this.executeDirectionalSearch(
             searchPairs.map((p) => ({ from: p.to, to: p.from })), // Swap direction
-            returnDate,
+            normalizedReturnDate!,
             'return'
           ),
         ]);
@@ -85,7 +114,7 @@ export class FlightSearchService {
         };
       } else {
         // ONE-WAY: Single direction search
-        const flights = await this.executeDirectionalSearch(searchPairs, departureDate, 'outbound');
+        const flights = await this.executeDirectionalSearch(searchPairs, normalizedDepartureDate, 'outbound');
 
         logger.info(`✅ [${this.SERVICE_NAME}] One-way search completed`, {
           totalFound: flights.length,

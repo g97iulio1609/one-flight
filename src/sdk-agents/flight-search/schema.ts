@@ -5,8 +5,7 @@
  */
 
 import { z } from 'zod';
-
-// ==================== INPUT SCHEMA ====================
+import { registerSchemas } from '@onecoach/one-agent/framework';
 
 export const FlightSearchInputSchema = z.object({
   /** Origin airport codes (IATA) */
@@ -197,3 +196,10 @@ export type FlightSearchOutput = z.infer<typeof FlightSearchOutputSchema>;
 export type FlightResult = z.infer<typeof FlightResultSchema>;
 export type FlightAnalysis = z.infer<typeof FlightAnalysisSchema>;
 export type FlightRecommendation = z.infer<typeof FlightRecommendationSchema>;
+
+// ==================== SCHEMA REGISTRATION ====================
+// Register schemas for bundled environments (Next.js Turbopack)
+registerSchemas({
+  'flight-search:input': FlightSearchInputSchema,
+  'flight-search:output': FlightSearchOutputSchema,
+});

@@ -17,6 +17,8 @@
  */
 
 import { execute as sdkExecute, createInMemoryAdapter, type PersistenceAdapter } from '@onecoach/one-agent/framework';
+// Side-effect import to register schemas in the SDK registry
+import '../sdk-agents/flight-search/schema';
 import type { FlightSearchInput as SDKFlightSearchInput, FlightSearchOutput } from '../sdk-agents/flight-search/schema';
 import path from 'path';
 
@@ -53,6 +55,7 @@ export async function executeFlightSearch(
     {
       userId: options.userId,
       persistence,
+      // SDK now handles bundled path normalization (Turbopack/Webpack)
       basePath: path.resolve(__dirname, '..'),
     }
   );
