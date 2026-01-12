@@ -12,7 +12,6 @@ import { execute } from '@onecoach/one-agent/framework';
 import type { FlightResult } from '../types';
 import { resolve } from 'path';
 import { initializeFlightSchemas } from '../registry';
-import { isGeminiCliProvider, searchFlightsViaKiwiMcp } from './kiwi-client';
 
 // =============================================================================
 // Types
@@ -137,14 +136,6 @@ export function initializeSmartSearch(options: { basePath?: string } = {}): void
  * 1. Uses ToolLoopAgent to call Kiwi MCP tools for flight data
  * 2. Analyzes the results using AI
  * 3. Generates recommendations based on user preferences
- * 
- * WORKAROUND for gemini-cli provider:
- * Gemini 3 thinking models require thought_signature for MCP tool loops.
- * The ai-sdk-provider-gemini-cli doesn't propagate this correctly.
- * For gemini-cli, we pre-fetch flight data directly from Kiwi MCP,
- * then pass it to the agent without MCP tool calls.
- * 
- * @see https://github.com/ben-vargas/ai-sdk-provider-gemini-cli/issues/28
  */
 export async function smartFlightSearch(
   input: FlightSearchInput,
@@ -162,50 +153,14 @@ export async function smartFlightSearch(
   console.log('[SmartSearch] input:', JSON.stringify(input, null, 2));
 
   try {
-    // Check if we're using gemini-cli provider (has thought_signature issues with MCP)
-    const useGeminiCliWorkaround = await isGeminiCliProvider();
-    
-    let agentInput: FlightSearchInput & { prefetchedFlights?: FlightResult[] };
-    
-    if (useGeminiCliWorkaround) {
-      console.log('[SmartSearch] 🔧 Using gemini-cli workaround: pre-fetching from Kiwi MCP directly');
-      
-      try {
-        // Pre-fetch flight data directly from Kiwi MCP
-        const prefetchedFlights = await searchFlightsViaKiwiMcp({
-          flyFrom: input.flyFrom,
-          flyTo: input.flyTo,
-          departureDate: input.departureDate,
-          returnDate: input.returnDate,
-          currency: input.currency,
-          maxResults: input.maxResults,
-        });
-        
-        console.log('[SmartSearch] Pre-fetched', prefetchedFlights.length, 'flights from Kiwi MCP');
-        
-        // Pass pre-fetched data to agent (agent won't call MCP tools)
-        agentInput = {
-          ...input,
-          prefetchedFlights,
-        };
-      } catch (kiwiError) {
-        console.error('[SmartSearch] Kiwi pre-fetch failed:', kiwiError);
-        // Fall back to normal flow (will likely fail with thought_signature error)
-        agentInput = { ...input };
-      }
-    } else {
-      // Normal flow for other providers
-      agentInput = { ...input };
-    }
-
     console.log('[SmartSearch] Calling execute() with agentPath: sdk-agents/flight-search');
-    console.log('[SmartSearch] agentInput keys:', Object.keys(agentInput));
+    console.log('[SmartSearch] input keys:', Object.keys(input));
 
     // Execute the flight-search agent via SDK
     // SDK v4.0: If agent is in durable mode, result includes workflowRunId
     const result = await execute<FlightSearchOutput>(
       'sdk-agents/flight-search',
-      agentInput,
+      input,
       {
         userId,
         basePath,
