@@ -92,6 +92,10 @@ export interface SmartSearchResult {
     tokensUsed: number;
     costUSD: number;
   };
+  /** Workflow run ID for durable mode - use for polling/resume (SDK v4.0+) */
+  workflowRunId?: string;
+  /** Workflow status for durable mode */
+  workflowStatus?: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 }
 
 // =============================================================================
@@ -198,6 +202,7 @@ export async function smartFlightSearch(
     console.log('[SmartSearch] agentInput keys:', Object.keys(agentInput));
 
     // Execute the flight-search agent via SDK
+    // SDK v4.0: If agent is in durable mode, result includes workflowRunId
     const result = await execute<FlightSearchOutput>(
       'sdk-agents/flight-search',
       agentInput,
@@ -207,11 +212,19 @@ export async function smartFlightSearch(
       }
     );
 
+    // Check for durable execution result (SDK v4.0)
+    const durableResult = result as typeof result & {
+      workflowRunId?: string;
+      workflowStatus?: string;
+    };
+
     console.log('[SmartSearch] execute() returned:', JSON.stringify({
       success: result.success,
       hasOutput: !!result.output,
       error: result.error,
       meta: result.meta,
+      workflowRunId: durableResult.workflowRunId,
+      workflowStatus: durableResult.workflowStatus,
     }, null, 2));
 
     if (result.success && result.output) {
@@ -225,6 +238,8 @@ export async function smartFlightSearch(
           tokensUsed: result.meta.tokensUsed,
           costUSD: result.meta.costUSD,
         },
+        workflowRunId: durableResult.workflowRunId,
+        workflowStatus: durableResult.workflowStatus as SmartSearchResult['workflowStatus'],
       };
     }
 
@@ -241,6 +256,9 @@ export async function smartFlightSearch(
         tokensUsed: result.meta.tokensUsed,
         costUSD: result.meta.costUSD,
       },
+      // Include workflowRunId even on failure for resume capability
+      workflowRunId: durableResult.workflowRunId,
+      workflowStatus: durableResult.workflowStatus as SmartSearchResult['workflowStatus'],
     };
   } catch (error) {
     console.error('[SmartSearch] ❌ Exception caught:', error);

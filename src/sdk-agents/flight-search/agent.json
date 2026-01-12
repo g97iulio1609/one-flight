@@ -17,6 +17,10 @@
     "maxSteps": 10,
     "maxTokens": 4096,
     "timeout": 60000,
-    "executionMode": "stream"
+    "executionMode": "durable",
+    "durability": {
+      "maxDurationMs": 120000,
+      "checkpointStrategy": "step"
+    }
   }
 }
