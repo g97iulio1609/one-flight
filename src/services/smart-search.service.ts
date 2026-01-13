@@ -4,7 +4,7 @@
  * Uses the OneAgent SDK v3.0 to execute the flight-search agent.
  * The agent uses ToolLoopAgent with MCP tools (Kiwi) for flight data
  * and AI analysis for recommendations.
- * 
+ *
  * Integrates with the centralized AI model system from admin settings.
  */
 
@@ -62,6 +62,9 @@ export interface FlightRecommendation {
   strategy: 'best_value' | 'cheapest' | 'fastest' | 'most_convenient' | 'flexible_combo';
   confidence: number;
   reasoning: string;
+  deepLink?: string;
+  outboundDeepLink?: string;
+  returnDeepLink?: string;
 }
 
 export interface FlightSearchOutput {
@@ -106,7 +109,7 @@ let basePath: string = '';
 
 /**
  * Initialize the smart search service
- * 
+ *
  * The basePath should point to the directory containing sdk-agents/
  * In Next.js, process.cwd() returns apps/next, so we go up to monorepo root
  */
@@ -126,12 +129,72 @@ export function initializeSmartSearch(options: { basePath?: string } = {}): void
 }
 
 // =============================================================================
+// Helper Function (Hoisted)
+// =============================================================================
+
+/**
+ * Helper to populate deepLinks in recommendations by looking up flight IDs
+ */
+function enrichOutputWithDeepLinks(output: FlightSearchOutput): FlightSearchOutput {
+  const allFlights = [...output.outbound, ...(output.return || [])];
+
+  // Helper to enrich a single recommendation
+  const enrichRec = (rec: FlightRecommendation): FlightRecommendation => {
+    const outboundFlight = allFlights.find((f) => f.id === rec.outboundFlightId);
+    const returnFlight = rec.returnFlightId
+      ? allFlights.find((f) => f.id === rec.returnFlightId)
+      : undefined;
+
+    // If deepLink is already present, keep it (unless it's empty)
+    if (rec.deepLink && rec.deepLink.length > 0) return rec;
+
+    // Construct deep links
+    const outboundLink = outboundFlight?.deepLink;
+    const returnLink = returnFlight?.deepLink;
+
+    // For round trips (both flights present)
+    if (outboundFlight && returnFlight) {
+      // If the outbound flight is actually a round-trip itinerary (Kiwi often returns this),
+      // then its deepLink covers both. We can check if returnFlight has the same deepLink
+      // or if outboundFlight.deepLink looks like a composite.
+      //
+      // HEURISTIC: Use outbound link as the main deepLink if it exists.
+      // Ideally, we'd have a combined link.
+      return {
+        ...rec,
+        outboundDeepLink: outboundLink,
+        returnDeepLink: returnLink,
+        // Default to outbound link for the main CTA, assuming it's the primary booking anchor
+        deepLink: outboundLink,
+      };
+    }
+
+    // For one-way or single flight found
+    if (outboundFlight) {
+      return {
+        ...rec,
+        outboundDeepLink: outboundLink,
+        deepLink: outboundLink,
+      };
+    }
+
+    return rec;
+  };
+
+  return {
+    ...output,
+    recommendation: enrichRec(output.recommendation),
+    alternatives: output.alternatives?.map(enrichRec),
+  };
+}
+
+// =============================================================================
 // Main Function
 // =============================================================================
 
 /**
  * Execute a smart flight search using the OneAgent SDK
- * 
+ *
  * This calls the flight-search agent which:
  * 1. Uses ToolLoopAgent to call Kiwi MCP tools for flight data
  * 2. Analyzes the results using AI
@@ -158,14 +221,10 @@ export async function smartFlightSearch(
 
     // Execute the flight-search agent via SDK
     // SDK v4.0: If agent is in durable mode, result includes workflowRunId
-    const result = await execute<FlightSearchOutput>(
-      'sdk-agents/flight-search',
-      input,
-      {
-        userId,
-        basePath,
-      }
-    );
+    const result = await execute<FlightSearchOutput>('sdk-agents/flight-search', input, {
+      userId,
+      basePath,
+    });
 
     // Check for durable execution result (SDK v4.0)
     const durableResult = result as typeof result & {
@@ -173,20 +232,31 @@ export async function smartFlightSearch(
       workflowStatus?: string;
     };
 
-    console.log('[SmartSearch] execute() returned:', JSON.stringify({
-      success: result.success,
-      hasOutput: !!result.output,
-      error: result.error,
-      meta: result.meta,
-      workflowRunId: durableResult.workflowRunId,
-      workflowStatus: durableResult.workflowStatus,
-    }, null, 2));
+    console.log(
+      '[SmartSearch] execute() returned:',
+      JSON.stringify(
+        {
+          success: result.success,
+          hasOutput: !!result.output,
+          error: result.error,
+          meta: result.meta,
+          workflowRunId: durableResult.workflowRunId,
+          workflowStatus: durableResult.workflowStatus,
+        },
+        null,
+        2
+      )
+    );
 
     if (result.success && result.output) {
       console.log('[SmartSearch] ✅ Success! Returning data...');
+
+      // Post-process recommendations to ensure deepLinks are populated
+      const enrichedOutput = enrichOutputWithDeepLinks(result.output);
+
       return {
         success: true,
-        data: result.output,
+        data: enrichedOutput,
         meta: {
           executionId: result.meta.executionId,
           durationMs: result.meta.duration,
@@ -218,7 +288,10 @@ export async function smartFlightSearch(
   } catch (error) {
     console.error('[SmartSearch] ❌ Exception caught:', error);
     console.error('[SmartSearch] Error name:', error instanceof Error ? error.name : 'N/A');
-    console.error('[SmartSearch] Error message:', error instanceof Error ? error.message : String(error));
+    console.error(
+      '[SmartSearch] Error message:',
+      error instanceof Error ? error.message : String(error)
+    );
     console.error('[SmartSearch] Error stack:', error instanceof Error ? error.stack : 'N/A');
 
     return {
@@ -236,4 +309,3 @@ export async function smartFlightSearch(
     };
   }
 }
-

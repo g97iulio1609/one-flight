@@ -13,7 +13,5 @@ export {
   type SmartSearchResult,
   type FlightSearchInput as SmartSearchInput,
   type FlightSearchOutput as SmartSearchOutput,
-  type FlightAnalysis,
-  type FlightRecommendation,
 } from './smart-search.service';
 

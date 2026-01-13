@@ -158,3 +158,5 @@ export interface FlightSearchConfig {
     error: (message: string, meta?: Record<string, unknown>) => void;
   };
 }
+
+export * from './saved-trip';

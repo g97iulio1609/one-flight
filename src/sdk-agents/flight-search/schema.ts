@@ -26,7 +26,6 @@ export const FlightSearchInputSchema = z.object({
   /** User's preferred currency */
   currency: z.string().length(3).default('EUR').describe('Currency code (e.g., EUR, USD)'),
 
-  /** User preferences for prioritization */
   preferences: z.object({
     /** Priority: price, duration, or convenience */
     priority: z.enum(['price', 'duration', 'convenience']).default('price'),
@@ -37,20 +36,13 @@ export const FlightSearchInputSchema = z.object({
     /** Preferred departure time range */
     departureTimePreference: z.enum(['morning', 'afternoon', 'evening', 'any']).default('any'),
   }).optional(),
-  
-  /** 
-   * Pre-fetched flight data (used for gemini-cli workaround).
-   * When provided, the agent should use this data instead of calling MCP tools.
-   * @see https://github.com/ben-vargas/ai-sdk-provider-gemini-cli/issues/28
-   */
-  prefetchedFlights: z.array(z.any()).optional().describe('Pre-fetched flight data - when provided, skip MCP tool calls'),
 });
 
 export type FlightSearchInput = z.infer<typeof FlightSearchInputSchema>;
 
 // ==================== FLIGHT RESULT SCHEMA ====================
 
-const FlightResultSchema = z.object({
+export const FlightResultSchema = z.object({
   id: z.string(),
   flyFrom: z.string(),
   flyTo: z.string(),
@@ -79,7 +71,7 @@ const FlightResultSchema = z.object({
 
 // ==================== RECOMMENDATION SCHEMA ====================
 
-const FlightRecommendationSchema = z.object({
+export const FlightRecommendationSchema = z.object({
   /** Recommended outbound flight ID */
   outboundFlightId: z.string(),
   
@@ -116,7 +108,7 @@ const FlightRecommendationSchema = z.object({
 
 // ==================== ANALYSIS SCHEMA ====================
 
-const FlightAnalysisSchema = z.object({
+export const FlightAnalysisSchema = z.object({
   /** Overall market assessment */
   marketSummary: z.string(),
   
