@@ -10,8 +10,8 @@ export { FlightSearchService } from './flight-search.service';
 export {
   smartFlightSearch,
   initializeSmartSearch,
+  getSmartSearchBasePath,
   type SmartSearchResult,
   type FlightSearchInput as SmartSearchInput,
   type FlightSearchOutput as SmartSearchOutput,
 } from './smart-search.service';
-

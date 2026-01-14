@@ -1,41 +1,58 @@
 /**
  * Smart Flight Search Agent - Schema Definitions
- * 
+ *
  * Enhanced schema with AI-powered analysis and recommendations.
+ * v4.1: Added _progress field for real-time streaming updates
  */
 
 import { z } from 'zod';
-import { registerSchemas } from '@onecoach/one-agent/framework';
+import { registerSchemas, ProgressFieldSchema } from '@onecoach/one-agent/framework';
 
 export const FlightSearchInputSchema = z.object({
   /** Origin airport codes (IATA) */
   flyFrom: z.array(z.string()).min(1).describe('Origin airport codes (e.g., ["MXP", "LIN"])'),
-  
+
   /** Destination airport codes (IATA) */
   flyTo: z.array(z.string()).min(1).describe('Destination airport codes (e.g., ["BCN", "MAD"])'),
-  
+
   /** Departure date in YYYY-MM-DD format */
-  departureDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Departure date (YYYY-MM-DD)'),
-  
+  departureDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe('Departure date (YYYY-MM-DD)'),
+
   /** Return date for round-trip (optional) */
-  returnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable().describe('Return date for round-trip (YYYY-MM-DD)'),
-  
+  returnDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable()
+    .describe('Return date for round-trip (YYYY-MM-DD)'),
+
   /** Maximum number of results per direction */
-  maxResults: z.number().int().min(1).max(20).default(5).describe('Maximum results to return per direction'),
-  
+  maxResults: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .default(5)
+    .describe('Maximum results to return per direction'),
+
   /** User's preferred currency */
   currency: z.string().length(3).default('EUR').describe('Currency code (e.g., EUR, USD)'),
 
-  preferences: z.object({
-    /** Priority: price, duration, or convenience */
-    priority: z.enum(['price', 'duration', 'convenience']).default('price'),
-    /** Avoid layovers if possible */
-    preferDirectFlights: z.boolean().default(true),
-    /** Maximum acceptable layover duration in hours */
-    maxLayoverHours: z.number().default(4),
-    /** Preferred departure time range */
-    departureTimePreference: z.enum(['morning', 'afternoon', 'evening', 'any']).default('any'),
-  }).optional(),
+  preferences: z
+    .object({
+      /** Priority: price, duration, or convenience */
+      priority: z.enum(['price', 'duration', 'convenience']).default('price'),
+      /** Avoid layovers if possible */
+      preferDirectFlights: z.boolean().default(true),
+      /** Maximum acceptable layover duration in hours */
+      maxLayoverHours: z.number().default(4),
+      /** Preferred departure time range */
+      departureTimePreference: z.enum(['morning', 'afternoon', 'evening', 'any']).default('any'),
+    })
+    .optional(),
 });
 
 export type FlightSearchInput = z.infer<typeof FlightSearchInputSchema>;
@@ -60,12 +77,16 @@ export const FlightResultSchema = z.object({
   price: z.number(),
   currency: z.string(),
   deepLink: z.string(),
-  layovers: z.array(z.object({
-    at: z.string(),
-    city: z.string(),
-    cityCode: z.string().optional(),
-    durationInSeconds: z.number().optional(),
-  })).optional(),
+  layovers: z
+    .array(
+      z.object({
+        at: z.string(),
+        city: z.string(),
+        cityCode: z.string().optional(),
+        durationInSeconds: z.number().optional(),
+      })
+    )
+    .optional(),
   direction: z.enum(['outbound', 'return']).optional(),
 });
 
@@ -74,34 +95,34 @@ export const FlightResultSchema = z.object({
 export const FlightRecommendationSchema = z.object({
   /** Recommended outbound flight ID */
   outboundFlightId: z.string(),
-  
+
   /** Recommended return flight ID (if round-trip) */
   returnFlightId: z.string().optional(),
-  
+
   /** Deep link to book outbound flight */
   outboundDeepLink: z.string().optional(),
-  
+
   /** Deep link to book return flight (or combined booking) */
   returnDeepLink: z.string().optional(),
-  
+
   /** Combined booking deep link (if available) */
   deepLink: z.string().optional(),
-  
+
   /** Total combined price */
   totalPrice: z.number(),
-  
+
   /** Primary reason for this recommendation */
   strategy: z.enum([
-    'best_value',           // Best balance of price and convenience
-    'cheapest',             // Lowest total cost
-    'fastest',              // Shortest total travel time
-    'most_convenient',      // Best schedule, direct flights, etc.
-    'flexible_combo',       // One-way combo that saves money
+    'best_value', // Best balance of price and convenience
+    'cheapest', // Lowest total cost
+    'fastest', // Shortest total travel time
+    'most_convenient', // Best schedule, direct flights, etc.
+    'flexible_combo', // One-way combo that saves money
   ]),
-  
+
   /** Confidence score (0-1) - optional for alternatives */
   confidence: z.number().min(0).max(1).optional().default(0.7),
-  
+
   /** Detailed reasoning */
   reasoning: z.string(),
 });
@@ -111,7 +132,7 @@ export const FlightRecommendationSchema = z.object({
 export const FlightAnalysisSchema = z.object({
   /** Overall market assessment */
   marketSummary: z.string(),
-  
+
   /** Price analysis */
   priceAnalysis: z.object({
     /** Average price for outbound flights */
@@ -123,7 +144,7 @@ export const FlightAnalysisSchema = z.object({
     /** Price trend insight */
     priceTrend: z.string(),
   }),
-  
+
   /** Route analysis */
   routeAnalysis: z.object({
     /** Best origin airport to depart from */
@@ -135,7 +156,7 @@ export const FlightAnalysisSchema = z.object({
     /** Reason for destination recommendation */
     destinationReason: z.string().optional(),
   }),
-  
+
   /** Schedule insights */
   scheduleAnalysis: z.object({
     /** Are there good direct flight options? */
@@ -145,10 +166,10 @@ export const FlightAnalysisSchema = z.object({
     /** Best time to fly */
     bestTimeToFly: z.string(),
   }),
-  
+
   /** Key insights (bullet points) */
   keyInsights: z.array(z.string()).min(1).max(5),
-  
+
   /** Potential savings tips */
   savingsTips: z.array(z.string()).optional(),
 });
@@ -158,30 +179,45 @@ export const FlightAnalysisSchema = z.object({
 export const FlightSearchOutputSchema = z.object({
   /** Trip type */
   tripType: z.enum(['one-way', 'round-trip']),
-  
+
   /** Outbound flights */
   outbound: z.array(FlightResultSchema),
-  
+
   /** Return flights (only for round-trip) */
   return: z.array(FlightResultSchema).optional(),
-  
+
   /** AI-powered analysis */
   analysis: FlightAnalysisSchema,
-  
+
   /** AI-powered recommendation */
   recommendation: FlightRecommendationSchema,
-  
+
   /** Alternative recommendations (ranked) */
   alternatives: z.array(FlightRecommendationSchema).max(2).optional(),
-  
+
   /** Search metadata */
   metadata: z.object({
     searchedAt: z.string(),
     totalResults: z.number(),
     cheapestPrice: z.number().optional(),
     searchDurationMs: z.number().optional(),
-    agentVersion: z.string().default('3.0.0'),
+    agentVersion: z.string().default('4.1.0'),
   }),
+
+  /**
+   * AI-driven progress updates (v4.1)
+   *
+   * The AI populates this field before each major action to provide
+   * real-time feedback to the UI. This field is transient and not
+   * included in the final output.
+   *
+   * @see PROGRESS_PROMPT_INSTRUCTIONS in OneAgent SDK types
+   */
+  _progress: ProgressFieldSchema.optional().describe(
+    'Real-time progress update. AI should populate this before each major action ' +
+      "with: step (internal ID), userMessage (user-friendly text in user's language), " +
+      'estimatedProgress (0-100), and optionally adminDetails and iconHint.'
+  ),
 });
 
 export type FlightSearchOutput = z.infer<typeof FlightSearchOutputSchema>;

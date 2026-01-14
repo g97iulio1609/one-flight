@@ -108,6 +108,17 @@ let isInitialized = false;
 let basePath: string = '';
 
 /**
+ * Get the basePath for the smart search agent.
+ * Call initializeSmartSearch() first, or this will auto-initialize.
+ */
+export function getSmartSearchBasePath(): string {
+  if (!isInitialized) {
+    initializeSmartSearch();
+  }
+  return basePath;
+}
+
+/**
  * Initialize the smart search service
  *
  * The basePath should point to the directory containing sdk-agents/
