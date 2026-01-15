@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "agent",
   "interface": {
-    "input": { "$ref": "flight-search:input" },
-    "output": { "$ref": "flight-search:output" }
+    "input": { "$ref": "./schema.ts#FlightSearchInputSchema" },
+    "output": { "$ref": "./schema.ts#FlightSearchOutputSchema" }
   },
   "mcpServers": {
     "kiwi": {
